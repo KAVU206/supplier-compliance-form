@@ -379,7 +379,7 @@ function addReport(sid){
       '<input type="file" multiple accept=".pdf,.xlsx,.xls,.csv,.jpg,.jpeg,.png" onchange="handleF(\''+sid+'\',\''+rid+'\',this.files)" />'+
       '<div class="dz-icon"><i class="ti ti-cloud-upload"></i></div>'+
       '<div class="dz-text">Drop files here or click to browse</div>'+
-      '<div class="dz-sub">PDF, Excel, CSV, JPG, PNG — max 25 MB each</div>'+
+      '<div class="dz-sub">PDF, Excel, CSV, JPG, PNG — max 5 MB each</div>'+
     '</div>'+
     '<div class="file-list" id="'+rid+'_fl"></div>'+
     '<div style="margin-top:10px;text-align:right">'+
@@ -411,9 +411,21 @@ function renum(sid){
   });
 }
 
+var MAX_FILE_BYTES = 5 * 1024 * 1024; // 5 MB
+
 function handleF(sid,rid,files){
   var store=SD[sid].reports[rid].files;
-  Array.from(files).forEach(function(f){if(!store.find(function(x){return x.name===f.name&&x.size===f.size;}))store.push(f);});
+  var rejected=[];
+  Array.from(files).forEach(function(f){
+    if(f.size > MAX_FILE_BYTES){
+      rejected.push(f.name+' ('+(f.size/1024/1024).toFixed(1)+' MB)');
+    } else if(!store.find(function(x){return x.name===f.name&&x.size===f.size;})){
+      store.push(f);
+    }
+  });
+  if(rejected.length>0){
+    showSt('error','File(s) exceed the 5 MB limit and were not added:<br>'+rejected.join('<br>')+'<br><small>Please compress or split the file and try again.</small>');
+  }
   renderF(sid,rid);
 }
 
@@ -486,6 +498,16 @@ function validate(){
       }
       if(!SD[sid].reports[rid]||SD[sid].reports[rid].files.length===0){showSt('error','Attach at least one file for '+ct.value+' on style(s): '+num+'.');return false;}
     }
+  }
+  // Total payload guard
+  var totalBytes=0;
+  document.querySelectorAll('[id^="card_"]').forEach(function(card){
+    var sid=card.id;
+    if(SD[sid]){Object.values(SD[sid].reports).forEach(function(r){r.files.forEach(function(f){totalBytes+=f.size;});});}
+  });
+  if(totalBytes>40*1024*1024){
+    showSt('error','Total upload size ('+(totalBytes/1024/1024).toFixed(1)+' MB) exceeds the 40 MB per-submission limit. Please split into multiple submissions or compress your files.');
+    return false;
   }
   return true;
 }
